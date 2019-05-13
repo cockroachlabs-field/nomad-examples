@@ -6,7 +6,8 @@ job "crdb" {
     healthy_deadline = "3m"
   }
 
-  group "cockroach-master" {
+  group "master-group" {
+    count = 1
 
     ephemeral_disk {
       migrate = true
@@ -14,7 +15,7 @@ job "crdb" {
       sticky = true
     }
 
-    task "cockroach-master-node" {
+    task "start-master" {
       driver = "raw_exec"
       leader = true
 
@@ -30,8 +31,7 @@ job "crdb" {
           "--store", "node-master-${NOMAD_ALLOC_INDEX}",
           "--host", "${NOMAD_IP_tcp}",
           "--port", "${NOMAD_PORT_tcp}",
-          "--http-port", "${NOMAD_PORT_http}",
-          "--join", "${COCKROACH_JOIN}"
+          "--http-port", "${NOMAD_PORT_http}"
         ]
       }
 
@@ -40,42 +40,34 @@ job "crdb" {
         memory = 1000
         network {
           port "http" {}
-          port "tcp" {}
+          port "tcp" {
+            static = "26257"
+          }
         }
       }
 
       service {
-        name = "cockroach"
-        tags = ["master"]
+        name = "master"
         port = "tcp"
         check {
-          name = "service: cockroach http check"
+          name = "master-http-check"
           type = "tcp"
           port = "http"
           interval = "10s"
           timeout = "1s"
         }
         check {
-          name = "service: cockroach tcp check"
+          name = "master-tcp-check"
           type = "tcp"
           port = "tcp"
           interval = "10s"
           timeout = "1s"
         }
       }
-
-      template {
-        data = <<EOH
-          COCKROACH_JOIN = {{ range $index, $cockroach := service "cockroach" }}{{ if eq $index 0 }}{{ $cockroach.Address }}:{{ $cockroach.Port }}{{ else}},{{ $cockroach.Address }}:{{ $cockroach.Port }}{{ end }}{{ end }}
-        EOH
-
-        destination = "local/config.env"
-        env = true
-      }
     }
   }
 
-  group "cockroach-nodes" {
+  group "node-group" {
     count = 2
 
     ephemeral_disk {
@@ -84,7 +76,7 @@ job "crdb" {
       sticky = true
     }
 
-    task "cockroach-node" {
+    task "start-node" {
       driver = "raw_exec"
       leader = true
 
@@ -101,7 +93,7 @@ job "crdb" {
           "--host", "${NOMAD_IP_tcp}",
           "--port", "${NOMAD_PORT_tcp}",
           "--http-port", "${NOMAD_PORT_http}",
-          "--join", "${COCKROACH_JOIN}"
+          "--join", "127.0.0.1:26257"
         ]
       }
 
@@ -115,32 +107,22 @@ job "crdb" {
       }
 
       service {
-        name = "cockroach"
-        tags = ["node"]
+        name = "node"
         port = "tcp"
         check {
-          name = "service: cockroach http check"
+          name = "node-http-check"
           type = "tcp"
           port = "http"
           interval = "10s"
           timeout = "1s"
         }
         check {
-          name = "service: cockroach tcp check"
+          name = "node-tcp-check"
           type = "tcp"
           port = "tcp"
           interval = "10s"
           timeout = "1s"
         }
-      }
-
-      template {
-        data = <<EOH
-          COCKROACH_JOIN = {{ range $index, $cockroach := service "master.cockroach" }}{{ if eq $index 0 }}{{ $cockroach.Address }}:{{ $cockroach.Port }}{{ else}},{{ $cockroach.Address }}:{{ $cockroach.Port }}{{ end }}{{ end }}
-        EOH
-
-        destination = "local/config.env"
-        env = true
       }
     }
   }
