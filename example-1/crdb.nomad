@@ -30,7 +30,8 @@ job "crdb" {
           "--store", "node-master-${NOMAD_ALLOC_INDEX}",
           "--host", "${NOMAD_IP_tcp}",
           "--port", "${NOMAD_PORT_tcp}",
-          "--http-port", "${NOMAD_PORT_http}"
+          "--http-port", "${NOMAD_PORT_http}",
+          "--join", "${COCKROACH_JOIN}"
         ]
       }
 
@@ -61,6 +62,15 @@ job "crdb" {
           interval = "10s"
           timeout = "1s"
         }
+      }
+
+      template {
+        data = <<EOH
+          COCKROACH_JOIN = {{ range $index, $cockroach := service "cockroach" }}{{ if eq $index 0 }}{{ $cockroach.Address }}:{{ $cockroach.Port }}{{ else}},{{ $cockroach.Address }}:{{ $cockroach.Port }}{{ end }}{{ end }}
+        EOH
+
+        destination = "local/config.env"
+        env = true
       }
     }
   }
