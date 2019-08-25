@@ -43,18 +43,22 @@ nomad job run example-1/crdb.nomad
 ```
 vault secrets enable database
 
-vault write database/config/my-crdb-database \
+vault write database/config/vault_test \
     plugin_name=postgresql-database-plugin \
-    allowed_roles="my-role" \
-    connection_url="postgresql://{{username}}:{{password}}@localhost:5432/?sslmode=disable&timezone=UTC" \
+    allowed_roles="test-role" \
+    connection_url="postgresql://{{username}}:{{password}}@localhost:5432/test?timezone=UTC&sslcert=/mnt/certs/roach-0/client.root.crt&sslkey=/mnt/certs/roach-0/client.root.key&sslmode=verify-full&sslrootcert=/mnt/certs/roach-0/ca.crt" \
     username="root" \
     password=""
     
-vault write database/roles/my-role \
-    db_name=my-crdb-database \
-    creation_statements="CREATE USER {{name}} WITH PASSWORD '{{password}}'; \
-        GRANT SELECT ON TABLE * TO \"{{name}}\";" \
+vault write database/roles/test-role \
+    db_name=vault_test \
+    creation_statements="CREATE ROLE IF NOT EXISTS vault_testers; \
+        CREATE USER \"{{name}}\"; \
+        CREATE vault_testers to \"{{name}}\"; \
+        GRANT SELECT ON DATABASE vault_test TO \"{{name}}\";" \
     default_ttl="1h" \
-    max_ttl="24h"    
+    max_ttl="24h"
+    
+vault read database/creds/test-role 
 ```
 
